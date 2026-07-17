@@ -1,0 +1,15 @@
+name: sfg_marker_trees
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - pip
+  - pyglet<2
+  - python=3.10
+  - pyvista
+  - pyyaml
+  - scipy
+  - typer
+  - pip:
+      - types-pyyaml
