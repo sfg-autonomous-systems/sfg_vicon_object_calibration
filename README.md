@@ -11,17 +11,19 @@ Vicon tracks a rigid object through the passive IR markers attached to it. To te
 
 Vicon only sees the markers, so the coordinate frame of a tracked object is defined by the markers and not by the base. Because every marker tree uses a different layout, the pose Vicon reports would sit somewhere different relative to the agent for each tree. To fix this, the bottom of the base has **3 spherical cutouts**. They are the same on every base, regardless of which holes are used, and they define the **base coordinate frame**:
 
-- **Origin:** the center of the origin sphere.
-- **+X axis:** points toward the center of the x-axis alignment sphere.
-- **+Y axis:** points toward the center of the y-axis alignment sphere, made orthogonal to the x-axis.
-- **+Z axis:** completes the right-handed frame.
+| Element | Definition                                                                              |
+| ------- | --------------------------------------------------------------------------------------- |
+| Origin  | Center of the origin sphere.                                                            |
+| +X axis | Points toward the center of the x-axis alignment sphere.                                |
+| +Y axis | Points toward the center of the y-axis alignment sphere, made orthogonal to the x-axis. |
+| +Z axis | Completes the right-handed frame.                                                       |
 
 ## Workflow
 
 1. **Assemble** the marker tree with its unique marker layout.
 2. **3D scan** the fully assembled marker tree and export the scan as an STL.
 3. **Fit spheres** in [CloudCompare](https://www.cloudcompare.org/): Import the STL and fit spheres to the 4 markers and to the 3 spherical cutouts on the bottom of the base. The sphere centers give all positions in the scan's coordinate frame.
-4. **Write a config** file in [`config/`](config/) containing these sphere centers (see [Config format](#config-format)).
+4. **Write a config** file in [`config/`](config/) containing these sphere centers (see [Config Format](#config-format)).
 5. **Compute the transform** between the marker frame and the base frame with [`compute_marker_tree_transform.py`](#compute_marker_tree_transformpy).
 6. **Apply the transform** in Vicon as the origin offset of the tracked object. Vicon then reports the pose of the base, regardless of the marker layout.
 
