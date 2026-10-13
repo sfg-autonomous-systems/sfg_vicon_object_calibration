@@ -11,5 +11,6 @@ dependencies:
   - pyyaml
   - scipy
   - typer
+  - vtk-base=*=qt*
   - pip:
       - types-pyyaml
