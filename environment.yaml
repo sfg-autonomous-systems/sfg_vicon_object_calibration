@@ -1,4 +1,4 @@
-name: sfg_marker_trees
+name: sfg_vicon_object_calibration
 channels:
   - conda-forge
   - defaults
@@ -11,5 +11,6 @@ dependencies:
   - pyyaml
   - scipy
   - typer
+  - vtk-base=*=qt*
   - pip:
       - types-pyyaml

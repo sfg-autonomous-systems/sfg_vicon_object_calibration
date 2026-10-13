@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import cast
@@ -9,53 +7,6 @@ from typing import cast
 import numpy
 import pyvista
 import typer
-import yaml
-from scipy.spatial.transform import Rotation as R  # type: ignore
-
-app = typer.Typer()
-
-
-@dataclass(frozen=True)
-class Config:
-    """
-    Configuration for the transform computation.
-    """
-
-    markers: list[numpy.ndarray]
-    base_origin: numpy.ndarray
-    base_x_axis_alignment_position: numpy.ndarray
-    base_y_axis_alignment_position: numpy.ndarray
-
-    @classmethod
-    def read(cls, config_filepath: Path) -> Config:
-        """
-        Reads the configuration from a YAML file.
-        """
-        try:
-            with open(config_filepath, "r") as file:
-                config = yaml.safe_load(file)
-
-            return cls(
-                markers=[numpy.array(marker) for marker in config["markers"]],
-                base_origin=numpy.array(config["base"]["origin"]),
-                base_x_axis_alignment_position=numpy.array(
-                    config["base"]["x_axis_alignment_position"]
-                ),
-                base_y_axis_alignment_position=numpy.array(
-                    config["base"]["y_axis_alignment_position"]
-                ),
-            )
-        except FileNotFoundError:
-            typer.echo(
-                f"Error: Configuration file not found at {config_filepath}", err=True
-            )
-            raise typer.Exit(code=1)
-        except yaml.YAMLError:
-            typer.echo("Error: Invalid YAML format.", err=True)
-            raise typer.Exit(code=1)
-        except KeyError as exception:
-            typer.echo(f"Error: Missing key in configuration: {exception}", err=True)
-            raise typer.Exit(code=1)
 
 
 class Axis(str, Enum):
@@ -183,6 +134,53 @@ def validate_input(
         raise typer.Exit(code=1)
 
 
+def select_marker_frame(
+    markers: list[numpy.ndarray],
+) -> tuple[numpy.ndarray, Axis, numpy.ndarray, Axis, numpy.ndarray]:
+    """
+    Prompts the user to define the marker frame by selecting an origin marker and two axis alignment markers.
+
+    Args:
+        markers: List of available markers.
+
+    Returns:
+        The origin, primary axis, primary axis alignment position, secondary axis and secondary axis
+        alignment position of the marker frame.
+    """
+    print_available_markers(markers)
+
+    typer.echo("")
+    marker_frame_origin = select_marker(markers, "origin")
+
+    typer.echo("")
+    marker_frame_primary_axis = select_axis(primary=True)
+    marker_frame_primary_axis_alignment_position = select_marker(
+        markers, "position to align the primary axis with"
+    )
+
+    typer.echo("")
+    marker_frame_secondary_axis = select_axis(primary=False)
+    marker_frame_secondary_axis_alignment_position = select_marker(
+        markers, "position to align the secondary axis with"
+    )
+
+    validate_input(
+        marker_frame_origin,
+        marker_frame_primary_axis,
+        marker_frame_primary_axis_alignment_position,
+        marker_frame_secondary_axis,
+        marker_frame_secondary_axis_alignment_position,
+    )
+
+    return (
+        marker_frame_origin,
+        marker_frame_primary_axis,
+        marker_frame_primary_axis_alignment_position,
+        marker_frame_secondary_axis,
+        marker_frame_secondary_axis_alignment_position,
+    )
+
+
 def compute_coordinate_frame(
     origin: numpy.ndarray,
     primary_axis: Axis,
@@ -240,59 +238,19 @@ def compute_coordinate_frame(
     return frame
 
 
-def output_transform(
-    marker_frame: numpy.ndarray,
-    base_frame: numpy.ndarray,
-) -> None:
-    """
-    Outputs the translation and rotation that needs to be applied to the marker frame to align it with the base frame.
-
-    Args:
-        marker_frame: 4x4 transformation matrix representing the marker frame.
-        base_frame: 4x4 transformation matrix representing the base frame.
-    """
-    # Transforms are applied in reverse order.
-    base_frame_relative_to_marker_frame = numpy.dot(
-        numpy.linalg.inv(marker_frame),
-        base_frame,
-    )
-    translation = base_frame_relative_to_marker_frame[0:3, 3]
-    # We need to compute the intrinsic Euler angles from the rotation matrix.
-    # Therefore, we use "XYZ" (note the capitalization).
-    rotation = R.from_matrix(base_frame_relative_to_marker_frame[0:3, 0:3]).as_euler(
-        "XYZ",
-        degrees=True,
-    )
-
-    for heading, value in [
-        ("Translation [mm]:", translation),
-        ("Rotation [deg]:", rotation),
-    ]:
-        typer.echo(heading)
-        typer.echo(
-            "  "
-            + numpy.array2string(
-                value,
-                precision=3,
-                floatmode="fixed",
-                formatter={"float_kind": lambda x: f"{x:.3f}"},
-            ).replace("\n", "\n  ")
-        )
-
-
 def render_frames(
-    config: Config,
-    marker_frame: numpy.ndarray,
-    base_frame: numpy.ndarray,
+    frames: list[numpy.ndarray],
+    positions: list[numpy.ndarray],
+    labels: list[str],
     mesh_filepath: Path | None = None,
 ) -> None:
     """
-    Renders the marker and base frames along with the mesh.
+    Renders coordinate frames and labeled positions along with the mesh.
 
     Args:
-        config: Configuration object containing mesh filepath and marker positions.
-        marker_frame: 4x4 transformation matrix representing the marker frame.
-        base_frame: 4x4 transformation matrix representing the base frame.
+        frames: 4x4 transformation matrices of the coordinate frames to render.
+        positions: Positions to label.
+        labels: Labels of the positions.
         mesh_filepath: Path to the mesh file or None if no mesh should be rendered.
     """
     plotter = pyvista.Plotter()
@@ -306,15 +264,8 @@ def render_frames(
         ]
         plotter.add_mesh(mesh, color="lightgray", opacity=0.9)
     else:
-        # Compute the hull of the markers and base frame positions to determine the scale of the axes.
-        all_positions = numpy.vstack(
-            config.markers
-            + [
-                config.base_origin,
-                config.base_x_axis_alignment_position,
-                config.base_y_axis_alignment_position,
-            ]
-        )
+        # Compute the hull of the labeled positions to determine the scale of the axes.
+        all_positions = numpy.vstack(positions)
         extents = [
             numpy.max(all_positions[:, 0]) - numpy.min(all_positions[:, 0]),
             numpy.max(all_positions[:, 1]) - numpy.min(all_positions[:, 1]),
@@ -323,7 +274,7 @@ def render_frames(
 
     scale = numpy.max(extents)
 
-    for transform in [marker_frame, base_frame]:
+    for transform in frames:
         axes = pyvista.AxesAssembly(
             user_matrix=transform,
             shaft_length=0.15 * scale,
@@ -335,14 +286,8 @@ def render_frames(
         plotter.add_actor(axes)  # type: ignore[arg-type]
 
     plotter.add_point_labels(
-        config.markers
-        + [
-            config.base_origin,
-            config.base_x_axis_alignment_position,
-            config.base_y_axis_alignment_position,
-        ],
-        [f"Marker {index}" for index in range(len(config.markers))]
-        + ["Base Origin", "Base X Alignment Position", "Base Y Alignment Position"],  # type: ignore[arg-type]
+        positions,
+        labels,  # type: ignore[arg-type]
         show_points=False,
         font_size=12,
         text_color="white",
@@ -355,60 +300,3 @@ def render_frames(
     plotter.view_vector((1, 1, 1), viewup=(0, 1, 0))  # type: ignore[arg-type]
     plotter.enable_terrain_style()  # type: ignore[call-arg]
     plotter.show()
-
-
-@app.command()
-def main(config_filepath: Path, mesh_filepath: Path | None = None) -> None:
-    """
-    Main entry point for the script.
-    """
-    config = Config.read(config_filepath)
-    print_available_markers(config.markers)
-
-    typer.echo("")
-    marker_frame_origin = select_marker(config.markers, "origin")
-
-    typer.echo("")
-    marker_frame_primary_axis = select_axis(primary=True)
-    marker_frame_primary_axis_alignment_position = select_marker(
-        config.markers, "position to align the primary axis with"
-    )
-
-    typer.echo("")
-    marker_frame_secondary_axis = select_axis(primary=False)
-    marker_frame_secondary_axis_alignment_position = select_marker(
-        config.markers, "position to align the secondary axis with"
-    )
-
-    validate_input(
-        marker_frame_origin,
-        marker_frame_primary_axis,
-        marker_frame_primary_axis_alignment_position,
-        marker_frame_secondary_axis,
-        marker_frame_secondary_axis_alignment_position,
-    )
-
-    # Compute the marker and base frames. Both frames' coordinates
-    # are defined relative to the mesh coordinate frame.
-    marker_frame = compute_coordinate_frame(
-        marker_frame_origin,
-        marker_frame_primary_axis,
-        marker_frame_primary_axis_alignment_position,
-        marker_frame_secondary_axis,
-        marker_frame_secondary_axis_alignment_position,
-    )
-
-    base_frame = compute_coordinate_frame(
-        config.base_origin,
-        Axis.POS_X,
-        config.base_x_axis_alignment_position,
-        Axis.POS_Y,
-        config.base_y_axis_alignment_position,
-    )
-
-    output_transform(marker_frame, base_frame)
-    render_frames(config, marker_frame, base_frame, mesh_filepath)
-
-
-if __name__ == "__main__":
-    app()
