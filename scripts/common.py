@@ -42,7 +42,7 @@ class Axis(str, Enum):
         }[self]
 
 
-def print_available_markers(markers: list) -> None:
+def print_available_markers(markers: list[numpy.ndarray]) -> None:
     """
     Prints the available markers with their indices.
 
@@ -51,8 +51,8 @@ def print_available_markers(markers: list) -> None:
     """
     typer.echo("Available markers:")
 
-    for idx, marker in enumerate(markers):
-        typer.echo(f"  {idx}: {marker}")
+    for index, marker in enumerate(markers):
+        typer.echo(f"  {index}: [{', '.join(f'{value:12.6f}' for value in marker)}]")
 
 
 def select_axis(primary: bool = True) -> Axis:
@@ -72,7 +72,7 @@ def select_axis(primary: bool = True) -> Axis:
     return axis
 
 
-def select_marker(markers: list, entity: str) -> numpy.ndarray:
+def select_marker(markers: list[numpy.ndarray], entity: str) -> numpy.ndarray:
     """
     Prompts the user to select a marker by its index.
 
