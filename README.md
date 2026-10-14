@@ -76,7 +76,7 @@ Computes the transform from a marker tree's marker frame to its base frame. The 
 
 #### Marker Tree Config Format
 
-All positions are sphere centers in the coordinate frame of the 3D scan, in millimeters. Please refer to [`sfg_go2_01__tracker.yaml`](config/sfg_go2_01__tracker.yaml) for an example. The required keys are:
+All positions are sphere centers in the coordinate frame of the 3D scan, in millimeters. Please refer to [`sfg_go2_01.yaml`](config/sfg_go2_01.yaml) for an example. The required keys are:
 
 | Key                              | Description                                                  |
 | -------------------------------- | ------------------------------------------------------------ |
